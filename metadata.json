@@ -1,0 +1,6 @@
+{
+  "name": "Voz em Cena",
+  "description": "Aplicativo de dublagem, criação de cenas, clonagem de voz e exportação de vídeos com IA Cartesia.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
