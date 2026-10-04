@@ -17,11 +17,16 @@ class CartesiaSettingsStore(context: Context) {
     private val _selectedModelFlow = MutableStateFlow(getSelectedModel())
     val selectedModelFlow: StateFlow<String> = _selectedModelFlow.asStateFlow()
 
+    private val _googleAiApiKeyFlow = MutableStateFlow(getEffectiveGoogleAiApiKey())
+    val googleAiApiKeyFlow: StateFlow<String> = _googleAiApiKeyFlow.asStateFlow()
+
+    private val _cronJobApiKeyFlow = MutableStateFlow(getEffectiveCronJobApiKey())
+    val cronJobApiKeyFlow: StateFlow<String> = _cronJobApiKeyFlow.asStateFlow()
+
     fun getEffectiveApiKey(): String {
         val userKey = prefs.getString(KEY_API_KEY, "") ?: ""
         if (userKey.isNotBlank()) return userKey.trim()
 
-        // Fallback to BuildConfig if configured via Secrets Plugin
         val buildConfigKey = runCatching {
             val field = BuildConfig::class.java.getField("CARTESIA_API_KEY")
             field.get(null) as? String
@@ -30,13 +35,55 @@ class CartesiaSettingsStore(context: Context) {
         return if (buildConfigKey != "YOUR_CARTESIA_API_KEY") buildConfigKey.trim() else ""
     }
 
+    fun getEffectiveGoogleAiApiKey(): String {
+        val userKey = prefs.getString(KEY_GOOGLE_AI_API_KEY, "") ?: ""
+        if (userKey.isNotBlank()) return userKey.trim()
+
+        val buildConfigKey = runCatching {
+            val field = BuildConfig::class.java.getField("GOOGLE_API_KEY")
+            field.get(null) as? String
+        }.getOrNull() ?: ""
+
+        return if (buildConfigKey != "YOUR_GOOGLE_API_KEY") buildConfigKey.trim() else ""
+    }
+
+    fun getEffectiveCronJobApiKey(): String {
+        val userKey = prefs.getString(KEY_CRONJOB_API_KEY, "") ?: ""
+        if (userKey.isNotBlank()) return userKey.trim()
+
+        val buildConfigKey = runCatching {
+            val field = BuildConfig::class.java.getField("CRONJOB_API_KEY")
+            field.get(null) as? String
+        }.getOrNull() ?: ""
+
+        return if (buildConfigKey != "YOUR_CRONJOB_API_KEY") buildConfigKey.trim() else ""
+    }
+
     fun hasValidApiKey(): Boolean {
         return getEffectiveApiKey().isNotBlank()
+    }
+
+    fun hasValidCronJobApiKey(): Boolean {
+        return getEffectiveCronJobApiKey().isNotBlank()
+    }
+
+    fun hasValidGoogleAiApiKey(): Boolean {
+        return getEffectiveGoogleAiApiKey().isNotBlank()
     }
 
     fun setApiKey(apiKey: String) {
         prefs.edit().putString(KEY_API_KEY, apiKey.trim()).apply()
         _apiKeyFlow.value = getEffectiveApiKey()
+    }
+
+    fun setGoogleAiApiKey(apiKey: String) {
+        prefs.edit().putString(KEY_GOOGLE_AI_API_KEY, apiKey.trim()).apply()
+        _googleAiApiKeyFlow.value = getEffectiveGoogleAiApiKey()
+    }
+
+    fun setCronJobApiKey(apiKey: String) {
+        prefs.edit().putString(KEY_CRONJOB_API_KEY, apiKey.trim()).apply()
+        _cronJobApiKeyFlow.value = getEffectiveCronJobApiKey()
     }
 
     fun getSelectedModel(): String {
@@ -63,6 +110,8 @@ class CartesiaSettingsStore(context: Context) {
 
     companion object {
         private const val KEY_API_KEY = "cartesia_custom_api_key"
+        private const val KEY_GOOGLE_AI_API_KEY = "google_ai_custom_api_key"
+        private const val KEY_CRONJOB_API_KEY = "cron_job_custom_api_key"
         private const val KEY_SELECTED_MODEL = "cartesia_model"
         private const val KEY_PREFERRED_LANG = "cartesia_preferred_lang"
     }

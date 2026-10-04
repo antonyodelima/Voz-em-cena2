@@ -245,6 +245,44 @@ fun DubbingScreen(
                             }
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Google AI (Gemini) script suggestion
+                    Button(
+                        onClick = { viewModel.suggestScriptWithAi() },
+                        enabled = !uiState.isSuggestingScript && !uiState.isGenerating,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CyanSecondary,
+                            contentColor = Color.Black,
+                            disabledContainerColor = CyanSecondary.copy(alpha = 0.4f),
+                            disabledContentColor = Color.Black.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("ai_suggest_script_button")
+                    ) {
+                        if (uiState.isSuggestingScript) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color.Black,
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Psychology,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = if (uiState.isSuggestingScript) "Consultando Google AI..." else "Sugerir roteiro com Google AI",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
 

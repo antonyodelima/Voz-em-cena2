@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sagun12.vozemcena.data.remote.CartesiaApi
+import com.sagun12.vozemcena.data.remote.CronJobDto
+import com.sagun12.vozemcena.data.remote.CronJobPreset
+import com.sagun12.vozemcena.data.repository.CronJobRepository
 import com.sagun12.vozemcena.data.settings.CartesiaSettingsStore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -19,13 +22,18 @@ data class AdminUiState(
     val connectionStatus: String? = null,
     val isSuccess: Boolean = false,
     val cacheSizeMb: Double = 0.0,
-    val infoMessage: String? = null
+    val infoMessage: String? = null,
+    val hasCronKey: Boolean = false,
+    val cronJobs: List<CronJobDto> = emptyList(),
+    val isLoadingCronJobs: Boolean = false,
+    val isCreatingCronJob: Boolean = false
 )
 
 class AdminViewModel(
     private val context: Context,
     private val settingsStore: CartesiaSettingsStore,
-    private val cartesiaApi: CartesiaApi
+    private val cartesiaApi: CartesiaApi,
+    private val cronJobRepository: CronJobRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -33,7 +41,8 @@ class AdminViewModel(
             currentApiKey = settingsStore.getEffectiveApiKey(),
             hasKeyConfigured = settingsStore.hasValidApiKey(),
             selectedModel = settingsStore.getSelectedModel(),
-            cacheSizeMb = calculateCacheSize()
+            cacheSizeMb = calculateCacheSize(),
+            hasCronKey = settingsStore.hasValidCronJobApiKey()
         )
     )
     val uiState: StateFlow<AdminUiState> = _uiState.asStateFlow()
@@ -103,6 +112,99 @@ class AdminViewModel(
                 cacheSizeMb = 0.0,
                 infoMessage = "Cache e arquivos temporários limpos."
             )
+        }
+    }
+
+    /** Atualiza a lista de tarefas do cron-job.org. */
+    fun loadCronJobs() {
+        if (!settingsStore.hasValidCronJobApiKey()) {
+            _uiState.value = _uiState.value.copy(
+                hasCronKey = false,
+                cronJobs = emptyList(),
+                isLoadingCronJobs = false,
+                infoMessage = "Adicione CRONJOB_API_KEY no painel de Secrets/Keys para gerenciar agendamentos."
+            )
+            return
+        }
+
+        _uiState.value = _uiState.value.copy(isLoadingCronJobs = true)
+        viewModelScope.launch {
+            cronJobRepository.listJobs()
+                .onSuccess { jobs ->
+                    _uiState.value = _uiState.value.copy(
+                        hasCronKey = true,
+                        cronJobs = jobs,
+                        isLoadingCronJobs = false
+                    )
+                }
+                .onFailure { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isLoadingCronJobs = false,
+                        infoMessage = error.localizedMessage ?: "Falha ao listar agendamentos."
+                    )
+                }
+        }
+    }
+
+    /** Cria uma tarefa habilitada com o preset escolhido e recarrega a lista. */
+    fun createCronJob(title: String, url: String, preset: CronJobPreset) {
+        if (url.isBlank()) {
+            _uiState.value = _uiState.value.copy(infoMessage = "Informe a URL que será chamada pelo agendamento.")
+            return
+        }
+
+        _uiState.value = _uiState.value.copy(isCreatingCronJob = true)
+        viewModelScope.launch {
+            cronJobRepository.createJob(title = title.ifBlank { "Voz em Cena" }, url = url.trim(), preset = preset)
+                .onSuccess { jobId ->
+                    _uiState.value = _uiState.value.copy(
+                        isCreatingCronJob = false,
+                        infoMessage = "Agendamento criado (job $jobId)."
+                    )
+                    loadCronJobs()
+                }
+                .onFailure { error ->
+                    _uiState.value = _uiState.value.copy(
+                        isCreatingCronJob = false,
+                        infoMessage = error.localizedMessage ?: "Falha ao criar agendamento."
+                    )
+                }
+        }
+    }
+
+    /** Habilita/desabilita uma tarefa existente. */
+    fun toggleCronJob(job: CronJobDto) {
+        val jobId = job.jobId ?: return
+        viewModelScope.launch {
+            cronJobRepository.setJobEnabled(jobId = jobId, enabled = !job.enabled)
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(
+                        infoMessage = if (!job.enabled) "Agendamento ativado." else "Agendamento pausado."
+                    )
+                    loadCronJobs()
+                }
+                .onFailure { error ->
+                    _uiState.value = _uiState.value.copy(
+                        infoMessage = error.localizedMessage ?: "Falha ao atualizar agendamento."
+                    )
+                }
+        }
+    }
+
+    /** Exclui uma tarefa existente. */
+    fun deleteCronJob(job: CronJobDto) {
+        val jobId = job.jobId ?: return
+        viewModelScope.launch {
+            cronJobRepository.deleteJob(jobId)
+                .onSuccess {
+                    _uiState.value = _uiState.value.copy(infoMessage = "Agendamento excluído.")
+                    loadCronJobs()
+                }
+                .onFailure { error ->
+                    _uiState.value = _uiState.value.copy(
+                        infoMessage = error.localizedMessage ?: "Falha ao excluir agendamento."
+                    )
+                }
         }
     }
 

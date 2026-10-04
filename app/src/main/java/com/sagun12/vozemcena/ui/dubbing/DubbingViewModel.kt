@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.sagun12.vozemcena.data.remote.CartesiaRetrofitService
+import com.sagun12.vozemcena.data.repository.GoogleAiRepository
 import com.sagun12.vozemcena.data.repository.VoiceRepository
 import com.sagun12.vozemcena.data.settings.CartesiaSettingsStore
 import com.sagun12.vozemcena.domain.model.Voice
@@ -30,6 +31,7 @@ data class DubbingUiState(
     val generatedAudioFile: File? = null,
     val audioDurationSeconds: Float = 0f,
     val generationLatencyMs: Long = 0L,
+    val isSuggestingScript: Boolean = false,
     val errorMessage: String? = null,
     val successMessage: String? = null
 )
@@ -38,7 +40,8 @@ class DubbingViewModel(
     private val context: Context,
     private val voiceRepository: VoiceRepository,
     private val cartesiaRetrofitService: CartesiaRetrofitService,
-    private val settingsStore: CartesiaSettingsStore
+    private val settingsStore: CartesiaSettingsStore,
+    private val googleAiRepository: GoogleAiRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DubbingUiState())
@@ -138,6 +141,47 @@ class DubbingViewModel(
                     errorMessage = error
                 )
             }
+        }
+    }
+
+    /**
+     * Consulta o Google AI (Gemini) para sugerir um roteiro de dublagem a partir do
+     * texto atual (ou de um tema padrão) e o injeta no campo de roteiro.
+     */
+    fun suggestScriptWithAi() {
+        if (_uiState.value.isSuggestingScript) return
+
+        val current = _uiState.value.scriptText.trim()
+        val topic = current.ifBlank { "uma narração curta e impactante para um vídeo" }
+
+        _uiState.value = _uiState.value.copy(
+            isSuggestingScript = true,
+            errorMessage = null,
+            successMessage = null
+        )
+
+        viewModelScope.launch {
+            val result = googleAiRepository.suggestDubbingScript(
+                topic = topic,
+                language = _uiState.value.selectedLanguage
+            )
+
+            _uiState.value = result.fold(
+                onSuccess = { script ->
+                    _uiState.value.copy(
+                        isSuggestingScript = false,
+                        scriptText = script,
+                        successMessage = "Roteiro sugerido pelo Google AI."
+                    )
+                },
+                onFailure = { error ->
+                    _uiState.value.copy(
+                        isSuggestingScript = false,
+                        errorMessage = error.localizedMessage
+                            ?: "Não foi possível consultar o Google AI."
+                    )
+                }
+            )
         }
     }
 

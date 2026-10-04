@@ -28,7 +28,8 @@ data class VoiceCloneUiState(
     val uploadProgress: Float = 0f,
     val createdVoice: Voice? = null,
     val errorMessage: String? = null,
-    val successMessage: String? = null
+    val successMessage: String? = null,
+    val apiKeyMissingGuideShown: Boolean = false
 )
 
 class VoiceCloneViewModel(
@@ -79,7 +80,8 @@ class VoiceCloneViewModel(
         _uiState.value = _uiState.value.copy(
             errorMessage = null,
             recordedAudioFile = null,
-            createdVoice = null
+            createdVoice = null,
+            apiKeyMissingGuideShown = false
         )
         audioRecorder.startRecording(sampleFile, viewModelScope)
     }
@@ -88,7 +90,8 @@ class VoiceCloneViewModel(
         val recordedFile = audioRecorder.stopRecording()
         if (recordedFile != null && recordedFile.exists()) {
             _uiState.value = _uiState.value.copy(
-                recordedAudioFile = recordedFile
+                recordedAudioFile = recordedFile,
+                apiKeyMissingGuideShown = false
             )
         }
     }
@@ -120,10 +123,22 @@ class VoiceCloneViewModel(
             return
         }
 
+        val apiKeyMissingGuideShown = _uiState.value.apiKeyMissingGuideShown
+
+        if (!settingsStore.hasValidApiKey() && !apiKeyMissingGuideShown) {
+            _uiState.value = _uiState.value.copy(
+                isUploading = false,
+                errorMessage = "Chave da API Cartesia não configurada. Configure CARTESIA_API_KEY no .env raiz ou no painel de Secrets.",
+                apiKeyMissingGuideShown = true
+            )
+            return
+        }
+
         _uiState.value = _uiState.value.copy(
             isUploading = true,
             errorMessage = null,
-            successMessage = null
+            successMessage = null,
+            apiKeyMissingGuideShown = apiKeyMissingGuideShown
         )
 
         viewModelScope.launch {
@@ -158,13 +173,15 @@ class VoiceCloneViewModel(
                     _uiState.value = _uiState.value.copy(
                         isUploading = false,
                         createdVoice = newVoice,
-                        successMessage = "Perfil de voz '${newVoice.name}' criado com sucesso no Cartesia!"
+                        successMessage = "Perfil de voz '${newVoice.name}' criado com sucesso no Cartesia!",
+                        apiKeyMissingGuideShown = true
                     )
                 } else {
                     val errorMsg = result.exceptionOrNull()?.localizedMessage ?: "Erro ao enviar amostra para Cartesia."
                     _uiState.value = _uiState.value.copy(
                         isUploading = false,
-                        errorMessage = errorMsg
+                        errorMessage = errorMsg,
+                        apiKeyMissingGuideShown = true
                     )
                 }
             } else {
@@ -202,5 +219,9 @@ class VoiceCloneViewModel(
     override fun onCleared() {
         super.onCleared()
         audioRecorder.stopRecording()
+    }
+
+    fun clearApiKeyGuide() {
+        _uiState.value = _uiState.value.copy(apiKeyMissingGuideShown = false)
     }
 }

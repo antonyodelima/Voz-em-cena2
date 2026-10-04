@@ -42,7 +42,8 @@ object AppViewModelProvider {
                 context = app.applicationContext,
                 voiceRepository = app.voiceRepository,
                 cartesiaRetrofitService = app.cartesiaModule.retrofitService,
-                settingsStore = app.settingsStore
+                settingsStore = app.settingsStore,
+                googleAiRepository = app.googleAiRepository
             )
         }
         initializer {
@@ -59,7 +60,8 @@ object AppViewModelProvider {
             AdminViewModel(
                 context = app.applicationContext,
                 settingsStore = app.settingsStore,
-                cartesiaApi = app.cartesiaModule.api
+                cartesiaApi = app.cartesiaModule.api,
+                cronJobRepository = app.cronJobRepository
             )
         }
     }
